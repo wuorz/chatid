@@ -4577,6 +4577,282 @@ return json(
 }
 
 
+/*
+ * ============================================================
+ * API：修改邮箱
+ * ============================================================
+ */
+
+if (
+  url.pathname === "/api/change-email" &&
+  request.method === "POST"
+) {
+
+  try {
+
+
+    const body =
+      await request.json();
+
+
+    const token =
+      body.token;
+
+
+    const email =
+      body.email
+        ?.trim()
+        .toLowerCase();
+
+
+    const code =
+      body.code
+        ?.trim();
+
+
+
+    if(!token){
+
+      return json(
+        {
+          error:
+            "登录状态已失效"
+        },
+        401
+      );
+
+    }
+
+
+
+    if(!validEmail(email)){
+
+      return json(
+        {
+          error:
+            "邮箱格式不正确"
+        },
+        400
+      );
+
+    }
+
+
+
+    /*
+     * 验证当前登录状态
+     */
+
+    const who =
+      await fetch(
+        `${SYNAPSE_URL}/_matrix/client/v3/account/whoami`,
+        {
+
+          headers:{
+            "Authorization":
+              `Bearer ${token}`
+          }
+
+        }
+      );
+
+
+    if(!who.ok){
+
+      return json(
+        {
+          error:
+            "登录状态已失效，请重新登录"
+        },
+        401
+      );
+
+    }
+
+
+    const account =
+      await who.json();
+
+
+
+    /*
+     * 检查新邮箱是否已经被使用
+     */
+
+    const availability =
+      await checkRegistrationAvailability(
+        null,
+        email
+      );
+
+
+    if(
+      availability.emailExists
+    ){
+
+      return json(
+        {
+          error:
+            "该邮箱已经绑定其他账号"
+        },
+        400
+      );
+
+    }
+
+
+
+    /*
+     * 验证验证码
+     */
+
+    const verified =
+      await verifyCode(
+        email,
+        code,
+        "change-email"
+      );
+
+
+    if(!verified){
+
+      return json(
+        {
+          error:
+            "验证码错误或已过期"
+        },
+        400
+      );
+
+    }
+
+
+
+    /*
+     * 获取当前用户资料
+     */
+
+    const userResponse =
+      await fetch(
+        `${SYNAPSE_URL}/_synapse/admin/v2/users/${encodeURIComponent(account.user_id)}`,
+        {
+
+          headers:{
+            "Authorization":
+              `Bearer ${env.SYNAPSE_ADMIN_TOKEN}`
+          }
+
+        }
+      );
+
+
+    if(!userResponse.ok){
+
+      return json(
+        {
+          error:
+            "获取用户信息失败"
+        },
+        500
+      );
+
+    }
+
+
+    const user =
+      await userResponse.json();
+
+
+
+    /*
+     * 保留其他信息，只替换邮箱
+     */
+
+    const update =
+      await fetch(
+        `${SYNAPSE_URL}/_synapse/admin/v2/users/${encodeURIComponent(account.user_id)}`,
+        {
+
+          method:"PUT",
+
+          headers:{
+
+            "Authorization":
+              `Bearer ${env.SYNAPSE_ADMIN_TOKEN}`,
+
+            "Content-Type":
+              "application/json"
+
+          },
+
+          body:
+            JSON.stringify({
+
+              threepids:[
+                {
+                  medium:"email",
+                  address:email
+                }
+              ]
+
+            })
+
+        }
+      );
+
+
+
+    if(!update.ok){
+
+      const text =
+        await update.text();
+
+
+      console.error(
+        "Change email:",
+        text
+      );
+
+
+      return json(
+        {
+          error:
+            "邮箱修改失败"
+        },
+        500
+      );
+
+    }
+
+
+
+    return json({
+
+      success:true
+
+    });
+
+
+
+  }catch(e){
+
+    console.error(e);
+
+
+    return json(
+      {
+        error:
+          e.message ||
+          "邮箱修改失败"
+      },
+      500
+    );
+
+  }
+
+}
+
+
     /*
      * ============================================================
      * API：修改密码

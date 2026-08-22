@@ -391,16 +391,24 @@ if (username) {
       );
 
 
-      const subject =
-        type === "register"
-          ? "WUORZ Chat 注册验证码"
-          : "WUORZ Chat 密码重置验证码";
+const subject =
+  type === "register"
+    ? "WUORZ Chat 注册验证码"
+    :
+  type === "change-email"
+    ? "WUORZ Chat 邮箱换绑验证码"
+    :
+    "WUORZ Chat 密码重置验证码";
 
 
-      const title =
-        type === "register"
-          ? "注册验证码"
-          : "密码重置验证码";
+const title =
+  type === "register"
+    ? "注册验证码"
+    :
+  type === "change-email"
+    ? "邮箱换绑验证码"
+    :
+    "密码重置验证码";
 
 
       await sendEmail(
@@ -2302,6 +2310,24 @@ onclick="changeName()"
 </button>
 
 
+<label>
+邮箱
+</label>
+
+<input
+id="email"
+readonly
+>
+
+
+<button
+class="secondary"
+onclick="location.href='/change-email'"
+>
+修改邮箱
+</button>
+
+
 <div class="actions">
 
 <button
@@ -2360,6 +2386,12 @@ const r =
     .getElementById("displayname")
     .value =
       data.displayname || "";
+
+
+  document
+    .getElementById("email")
+    .value =
+      data.email || "";    
 
 }
 
@@ -2485,6 +2517,414 @@ function logout(){
       );
 
     }
+
+
+/*
+ * ============================================================
+ * 修改邮箱
+ * ============================================================
+ */
+
+if (url.pathname === "/change-email") {
+
+return new Response(
+`
+<!doctype html>
+
+<html lang="zh-CN">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+name="viewport"
+content="width=device-width,initial-scale=1"
+>
+
+<title>
+WUORZ Chat · 修改邮箱
+</title>
+
+
+<style>
+
+${COMMON_CSS}
+
+
+.code-row{
+
+display:flex;
+gap:8px;
+
+}
+
+
+.code-row input{
+
+flex:1;
+
+}
+
+
+.code-row button{
+
+width:110px;
+margin-top:0;
+font-size:14px;
+
+}
+
+
+</style>
+
+
+</head>
+
+
+<body>
+
+
+<div class="card">
+
+
+<div class="logo">
+WUORZ Chat
+</div>
+
+
+<div class="subtitle">
+修改绑定邮箱
+</div>
+
+
+
+<form id="form">
+
+
+<label>
+新邮箱
+</label>
+
+
+<input
+id="email"
+type="email"
+placeholder="新的邮箱地址"
+required
+>
+
+
+
+<label>
+验证码
+</label>
+
+
+<div class="code-row">
+
+
+<input
+id="code"
+placeholder="6位验证码"
+inputmode="numeric"
+required
+>
+
+
+<button
+type="button"
+class="secondary"
+id="send"
+>
+获取验证码
+</button>
+
+
+</div>
+
+
+
+<button>
+确认修改
+</button>
+
+
+
+<div
+class="error"
+id="error"
+></div>
+
+
+
+</form>
+
+
+
+<div class="links">
+
+<a href="/account">
+返回账户
+</a>
+
+</div>
+
+
+</div>
+
+
+
+<script>
+
+
+const error =
+document.getElementById(
+"error"
+);
+
+
+
+document
+.getElementById("send")
+.addEventListener(
+"click",
+async()=>{
+
+
+const email =
+document
+.getElementById("email")
+.value
+.trim();
+
+
+
+try{
+
+
+const r =
+await fetch(
+"/api/change-email/send-code",
+{
+
+method:"POST",
+
+headers:{
+"Content-Type":
+"application/json"
+},
+
+body:
+JSON.stringify({
+email
+})
+
+}
+);
+
+
+
+const data =
+await r.json();
+
+
+
+if(!r.ok){
+
+throw new Error(
+data.error ||
+"发送失败"
+);
+
+}
+
+
+
+alert(
+  "验证码已发送"
+);
+
+
+let n = 60;
+
+
+const btn =
+  document
+    .getElementById(
+      "send"
+    );
+
+
+btn.disabled =
+  true;
+
+
+btn.textContent =
+  n + " 秒";
+
+
+const timer =
+  setInterval(
+    () => {
+
+      n--;
+
+      btn.textContent =
+        n + " 秒";
+
+
+      if(n <= 0){
+
+        clearInterval(
+          timer
+        );
+
+
+        btn.disabled =
+          false;
+
+
+        btn.textContent =
+          "获取验证码";
+
+      }
+
+    },
+    1000
+  );
+
+
+
+}catch(e){
+
+error.textContent =
+e.message;
+
+error.style.display =
+"block";
+
+}
+
+
+});
+
+
+
+
+
+document
+.getElementById("form")
+.addEventListener(
+"submit",
+async e=>{
+
+
+e.preventDefault();
+
+
+
+const token =
+sessionStorage.getItem(
+"chatid_access_token"
+);
+
+
+
+const email =
+document
+.getElementById("email")
+.value
+.trim();
+
+
+
+const code =
+document
+.getElementById("code")
+.value
+.trim();
+
+
+
+const r =
+await fetch(
+"/api/change-email",
+{
+
+method:"POST",
+
+headers:{
+"Content-Type":
+"application/json"
+},
+
+body:
+JSON.stringify({
+
+token,
+
+email,
+
+code
+
+})
+
+}
+);
+
+
+
+const data =
+await r.json();
+
+
+
+if(!r.ok){
+
+error.textContent =
+data.error ||
+"修改失败";
+
+error.style.display =
+"block";
+
+return;
+
+}
+
+
+
+alert(
+"邮箱修改成功，请重新登录"
+);
+
+
+
+sessionStorage.clear();
+
+
+location.href =
+"/login";
+
+
+});
+
+
+</script>
+
+
+</body>
+
+</html>
+`,
+{
+headers
+}
+);
+
+
+}    
 
 
     /*
@@ -3812,7 +4252,60 @@ if (
       await response.json();
 
 
-    return json(data);
+/*
+ * 获取邮箱
+ */
+
+const admin =
+  await fetch(
+    `${SYNAPSE_URL}/_synapse/admin/v2/users/${encodeURIComponent(user_id)}`,
+    {
+      headers:{
+        "Authorization":
+          `Bearer ${env.SYNAPSE_ADMIN_TOKEN}`
+      }
+    }
+  );
+
+
+let email = "";
+
+
+if(admin.ok){
+
+  const user =
+    await admin.json();
+
+
+  const threepids =
+    user.threepids || [];
+
+
+  const item =
+    threepids.find(
+      x =>
+        x.medium === "email"
+    );
+
+
+  if(item){
+
+    email =
+      item.address;
+
+  }
+
+}
+
+
+return json({
+
+  displayname:
+    data.displayname || "",
+
+  email
+
+});
 
 
   }catch(e){
@@ -3997,7 +4490,91 @@ if (
 
   }
 
-}    
+}
+
+
+/*
+ * ============================================================
+ * API：换绑邮箱发送验证码
+ * ============================================================
+ */
+
+if (
+  url.pathname ===
+    "/api/change-email/send-code" &&
+  request.method === "POST"
+) {
+
+  try {
+
+
+    const body =
+      await request.json();
+
+
+    const email =
+      body.email
+        ?.trim()
+        .toLowerCase();
+
+
+    if(!validEmail(email)){
+
+      return json(
+        {
+          error:
+            "邮箱格式不正确"
+        },
+        400
+      );
+
+    }
+
+    const availability =
+      await checkRegistrationAvailability(
+       null,
+       email
+      );
+
+
+      if(availability.emailExists){
+
+       return json(
+       {
+        error:
+         "该邮箱已经绑定其他账号"
+       },
+       400
+       );
+
+      }
+
+
+return json(
+ await sendCode(
+   email,
+   "change-email"
+ )
+);
+
+
+  }catch(e){
+
+    console.error(e);
+
+
+    return json(
+      {
+        error:
+          e.message ||
+          "验证码发送失败"
+      },
+      500
+    );
+
+  }
+
+}
 
 
     /*

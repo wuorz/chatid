@@ -97,6 +97,80 @@ export default {
     }
 
 
+function parseUserAgent(ua){
+
+  let browser = "未知浏览器";
+
+  let os = "未知系统";
+
+
+  /*
+   * 浏览器
+   */
+
+  if(/Edg\//.test(ua)){
+
+    browser = "Edge";
+
+  }
+  else if(/Chrome\//.test(ua)){
+
+    browser = "Chrome";
+
+  }
+  else if(/Firefox\//.test(ua)){
+
+    browser = "Firefox";
+
+  }
+  else if(/Safari\//.test(ua)){
+
+    browser = "Safari";
+
+  }
+
+
+  /*
+   * 系统
+   */
+
+  if(/Macintosh/.test(ua)){
+
+    os = "macOS";
+
+  }
+  else if(/iPhone/.test(ua)){
+
+    os = "iPhone";
+
+  }
+  else if(/iPad/.test(ua)){
+
+    os = "iPadOS";
+
+  }
+  else if(/Windows/.test(ua)){
+
+    os = "Windows";
+
+  }
+  else if(/Android/.test(ua)){
+
+    os = "Android";
+
+  }
+  else if(/Linux/.test(ua)){
+
+    os = "Linux";
+
+  }
+
+
+  return `${browser} · ${os}`;
+
+}    
+
+
 /*
  * ============================================================
  * 检查用户名 / 邮箱是否已经注册
@@ -514,6 +588,162 @@ ${code}
 
 
     /*
+ * ============================================================
+ * 管理员 Session
+ * ============================================================
+ */
+
+const ADMIN_SESSION_TTL = 60 * 60;
+
+
+/*
+ * 生成随机管理员 Session
+ */
+
+async function createAdminSession(env) {
+
+  const bytes =
+    new Uint8Array(32);
+
+  crypto.getRandomValues(bytes);
+
+
+  const session =
+    Array.from(bytes)
+      .map(
+        b =>
+          b
+            .toString(16)
+            .padStart(2, "0")
+      )
+      .join("");
+
+
+  await env.CHATID_KV.put(
+    `admin_session:${session}`,
+    "1",
+    {
+      expirationTtl:
+        ADMIN_SESSION_TTL
+    }
+  );
+
+
+  return session;
+
+}
+
+
+/*
+ * 获取 Cookie
+ */
+
+function getCookie(
+  request,
+  name
+) {
+
+  const cookie =
+    request.headers.get(
+      "Cookie"
+    ) || "";
+
+
+  const match =
+    cookie
+      .split(";")
+      .map(
+        x => x.trim()
+      )
+      .find(
+        x =>
+          x.startsWith(
+            name + "="
+          )
+      );
+
+
+  if(!match){
+
+    return "";
+
+  }
+
+
+  return decodeURIComponent(
+    match.substring(
+      name.length + 1
+    )
+  );
+
+}
+
+
+/*
+ * 验证管理员 Session
+ */
+
+async function verifyAdminSession(
+  request,
+  env
+) {
+
+  const session =
+    getCookie(
+      request,
+      "wuorz_admin_session"
+    );
+
+
+  if(!session){
+
+    return false;
+
+  }
+
+
+  const exists =
+    await env.CHATID_KV.get(
+      `admin_session:${session}`
+    );
+
+
+  return !!exists;
+
+}
+
+
+/*
+ * 删除管理员 Session
+ */
+
+async function deleteAdminSession(
+  request,
+  env
+) {
+
+  const session =
+    getCookie(
+      request,
+      "wuorz_admin_session"
+    );
+
+
+  if(!session){
+
+    return;
+
+  }
+
+
+  await env.CHATID_KV.delete(
+    `admin_session:${session}`
+  );
+
+}
+
+
+    /*
      * ============================================================
      * 首页
      * ============================================================
@@ -796,6 +1026,25 @@ id="error"
 </div>
 
 <script>
+
+const params =
+  new URLSearchParams(
+    location.search
+  );
+
+
+const savedUsername =
+  params.get("username");
+
+
+if(savedUsername){
+
+  document
+    .getElementById("username")
+    .value =
+      savedUsername;
+
+}
 
 document
 .getElementById("form")
@@ -1300,7 +1549,8 @@ document
 
 
       location.href =
-        "/login";
+        "/welcome?username=" +
+        encodeURIComponent(username);
 
 
     }catch(e){
@@ -1327,6 +1577,342 @@ document
       );
 
     }
+
+
+/*
+ * ============================================================
+ * 注册成功欢迎页面
+ * ============================================================
+ */
+
+if (url.pathname === "/welcome") {
+
+  const username =
+    url.searchParams.get("username") || "";
+
+
+  return new Response(
+`<!doctype html>
+
+<html lang="zh-CN">
+
+<head>
+
+<meta charset="UTF-8">
+
+<meta
+  name="viewport"
+  content="width=device-width,initial-scale=1"
+>
+
+<title>WUORZ Chat · 欢迎</title>
+
+<style>
+
+${COMMON_CSS}
+
+
+.welcome{
+
+  margin-top:28px;
+
+  text-align:center;
+
+}
+
+
+.emoji{
+
+  font-size:42px;
+
+  line-height:1;
+
+}
+
+
+.welcome-title{
+
+  margin-top:20px;
+
+  font-size:24px;
+
+  font-weight:700;
+
+  letter-spacing:-.5px;
+
+}
+
+
+.welcome-text{
+
+  margin-top:10px;
+
+  color:#86868b;
+
+  font-size:15px;
+
+  line-height:1.6;
+
+}
+
+
+.next{
+
+  margin-top:30px;
+
+  text-align:left;
+
+}
+
+
+.next-title{
+
+  font-size:15px;
+
+  font-weight:600;
+
+}
+
+
+.next-item{
+
+  margin-top:12px;
+
+  color:#555;
+
+  font-size:14px;
+
+  line-height:1.5;
+
+}
+
+
+.clients{
+
+  margin-top:30px;
+
+  text-align:left;
+
+}
+
+
+.clients-title{
+
+  font-size:15px;
+
+  font-weight:600;
+
+}
+
+
+.client{
+
+  display:block;
+
+  margin-top:10px;
+
+  padding:14px 16px;
+
+  border-radius:12px;
+
+  background:#f2f2f7;
+
+  color:#1d1d1f;
+
+  text-decoration:none;
+
+  transition:
+    background .15s ease;
+
+}
+
+
+.client:hover{
+
+  background:#e8e8ed;
+
+}
+
+
+.client-name{
+
+  font-size:15px;
+
+  font-weight:500;
+
+}
+
+
+.client-desc{
+
+  margin-top:3px;
+
+  color:#86868b;
+
+  font-size:13px;
+
+}
+
+
+.login-button{
+
+  margin-top:30px;
+
+}
+
+
+</style>
+
+</head>
+
+<body>
+
+<div class="card">
+
+<div class="logo">
+WUORZ Chat
+</div>
+
+
+<div class="welcome">
+
+<div class="emoji">
+🎉
+</div>
+
+
+<div class="welcome-title">
+欢迎加入 WUORZ Chat
+</div>
+
+
+<div class="welcome-text">
+你的账号已经创建成功。
+</div>
+
+
+</div>
+
+
+<div class="next">
+
+<div class="next-title">
+接下来你可以：
+</div>
+
+
+<div class="next-item">
+① 登录账户管理你的个人信息
+</div>
+
+
+<div class="next-item">
+② 下载 Element 客户端开始聊天
+</div>
+
+
+<div class="next-item">
+③ 使用网页版访问 WUORZ Chat
+</div>
+
+
+</div>
+
+
+<div class="clients">
+
+<div class="clients-title">
+推荐客户端
+</div>
+
+
+<a
+class="client"
+href="https://apps.apple.com/app/id1631335820"
+>
+
+<div class="client-name">
+Element X iOS
+</div>
+
+<div class="client-desc">
+iPhone / iPad
+</div>
+
+</a>
+
+
+<a
+class="client"
+href="https://github.com/element-hq/element-x-android/"
+>
+
+<div class="client-name">
+Element X Android
+</div>
+
+<div class="client-desc">
+Android 客户端
+</div>
+
+</a>
+
+
+<a
+class="client"
+href="https://element.wuorz.com/#/login"
+>
+
+<div class="client-name">
+Element Web
+</div>
+
+<div class="client-desc">
+浏览器直接访问
+</div>
+
+</a>
+
+
+</div>
+
+
+<button
+class="login-button"
+onclick="goLogin()"
+>
+返回登录
+</button>
+
+
+</div>
+
+
+<script>
+
+function goLogin(){
+
+  const username =
+    ${JSON.stringify(username)};
+
+
+  location.href =
+    "/login?username=" +
+    encodeURIComponent(username);
+
+}
+
+</script>
+
+</body>
+
+</html>`,
+    {
+      headers,
+    }
+  );
+
+}    
 
 
     /*
@@ -1727,18 +2313,33 @@ document
  * ============================================================
  */
 
-if (url.pathname === "/admin") {
-
-  const token =
-    url.searchParams.get("token") || "";
+if (
+  url.pathname === "/admin" &&
+  request.method === "GET"
+) {
 
   /*
-   * 未提供 Token
-   *
-   * 显示登录页面
+   * ----------------------------------------------------------
+   * 检查管理员 Session
+   * ----------------------------------------------------------
    */
 
-  if (token !== ADMIN_TOKEN) {
+  const authenticated =
+    await verifyAdminSession(
+      request,
+      env
+    );
+
+
+  /*
+   * ----------------------------------------------------------
+   * 未登录
+   *
+   * 显示管理员登录页面
+   * ----------------------------------------------------------
+   */
+
+  if(!authenticated){
 
     return new Response(
 `<!doctype html>
@@ -1788,24 +2389,25 @@ WUORZ Chat
 管理员登录
 </div>
 
-<form
-  onsubmit="login(event)"
->
+
+<form id="form">
 
 <label>
-管理员 Token
+管理员密钥
 </label>
 
 <input
-  id="token"
+  id="password"
   type="password"
   autocomplete="off"
   required
 >
 
+
 <button>
 进入管理后台
 </button>
+
 
 <div
   class="error"
@@ -1819,25 +2421,97 @@ WUORZ Chat
 
 <script>
 
-function login(e){
+const form =
+  document.getElementById(
+    "form"
+  );
 
-  e.preventDefault();
 
-  const token =
-    document
-      .getElementById("token")
-      .value
-      .trim();
+const error =
+  document.getElementById(
+    "error"
+  );
 
-  if(!token){
-    return;
+
+form.addEventListener(
+  "submit",
+  async e => {
+
+    e.preventDefault();
+
+
+    error.style.display =
+      "none";
+
+
+    const password =
+      document
+        .getElementById(
+          "password"
+        )
+        .value;
+
+
+    if(!password){
+
+      return;
+
+    }
+
+
+    try{
+
+      const r =
+        await fetch(
+          "/api/admin/login",
+          {
+
+            method:"POST",
+
+            headers:{
+              "Content-Type":
+                "application/json"
+            },
+
+            body:
+              JSON.stringify({
+                password
+              })
+
+          }
+        );
+
+
+      const data =
+        await r.json();
+
+
+      if(!r.ok){
+
+        throw new Error(
+          data.error ||
+          "登录失败"
+        );
+
+      }
+
+
+      location.href =
+        "/admin";
+
+
+    }catch(e){
+
+      error.textContent =
+        e.message;
+
+      error.style.display =
+        "block";
+
+    }
+
   }
-
-  location.href =
-    "/admin?token=" +
-    encodeURIComponent(token);
-
-}
+);
 
 </script>
 
@@ -1853,9 +2527,9 @@ function login(e){
 
 
   /*
-   * ------------------------------------------------------------
+   * ----------------------------------------------------------
    * 管理后台
-   * ------------------------------------------------------------
+   * ----------------------------------------------------------
    */
 
   return new Response(
@@ -2039,12 +2713,13 @@ WUORZ-7K4P-9X2M
 复制全部
 </button>
 
+
 <button
   type="button"
   class="secondary"
-  onclick="location.href='/admin'"
+  id="logout"
 >
-退出
+退出管理
 </button>
 
 </div>
@@ -2067,10 +2742,6 @@ WUORZ-7K4P-9X2M
 
 
 <script>
-
-const TOKEN =
-  ${JSON.stringify(token)};
-
 
 const form =
   document.getElementById(
@@ -2096,11 +2767,18 @@ const success =
   );
 
 
+/*
+ * ----------------------------------------------------------
+ * 生成邀请码
+ * ----------------------------------------------------------
+ */
+
 form.addEventListener(
   "submit",
   async e => {
 
     e.preventDefault();
+
 
     error.style.display =
       "none";
@@ -2112,7 +2790,9 @@ form.addEventListener(
     const count =
       Number(
         document
-          .getElementById("count")
+          .getElementById(
+            "count"
+          )
           .value
       );
 
@@ -2145,10 +2825,7 @@ form.addEventListener(
 
             headers:{
               "Content-Type":
-                "application/json",
-
-              "Authorization":
-                "Bearer " + TOKEN
+                "application/json"
             },
 
             body:
@@ -2166,6 +2843,18 @@ form.addEventListener(
 
       if(!r.ok){
 
+        if(
+          r.status === 401
+        ){
+
+          location.href =
+            "/admin";
+
+          return;
+
+        }
+
+
         throw new Error(
           data.error ||
           "生成失败"
@@ -2175,7 +2864,9 @@ form.addEventListener(
 
 
       codes.value =
-        data.codes.join("\\n");
+        data.codes.join(
+          "\\n"
+        );
 
 
     }catch(e){
@@ -2192,44 +2883,95 @@ form.addEventListener(
 );
 
 
+/*
+ * ----------------------------------------------------------
+ * 复制邀请码
+ * ----------------------------------------------------------
+ */
+
 document
-.getElementById("copy")
-.addEventListener(
-  "click",
-  async () => {
+  .getElementById(
+    "copy"
+  )
+  .addEventListener(
+    "click",
+    async () => {
 
-    if(!codes.value){
+      if(!codes.value){
 
-      return;
+        return;
 
-    }
+      }
 
 
-    try{
+      try{
 
-      await navigator.clipboard
-        .writeText(
-          codes.value
+        await navigator
+          .clipboard
+          .writeText(
+            codes.value
+          );
+
+
+        success.style.display =
+          "block";
+
+
+      }catch(e){
+
+        codes.select();
+
+
+        document.execCommand(
+          "copy"
         );
 
-      success.style.display =
-        "block";
 
-    }catch(e){
+        success.style.display =
+          "block";
 
-      codes.select();
-
-      document.execCommand(
-        "copy"
-      );
-
-      success.style.display =
-        "block";
+      }
 
     }
+  );
 
-  }
-);
+
+/*
+ * ----------------------------------------------------------
+ * 退出管理员后台
+ * ----------------------------------------------------------
+ */
+
+document
+  .getElementById(
+    "logout"
+  )
+  .addEventListener(
+    "click",
+    async () => {
+
+      try{
+
+        await fetch(
+          "/api/admin/logout",
+          {
+            method:"POST"
+          }
+        );
+
+      }catch(e){
+
+        // 即使请求失败，
+        // 仍然返回登录页面
+
+      }
+
+
+      location.href =
+        "/admin";
+
+    }
+  );
 
 </script>
 
@@ -2241,7 +2983,7 @@ document
     }
   );
 
-}    
+}
 
 
     /*
@@ -2272,6 +3014,103 @@ document
 
 ${COMMON_CSS}
 
+
+.section{
+
+  margin-top:28px;
+
+}
+
+
+.title{
+
+  margin-top:18px;
+
+  font-size:13px;
+
+  color:#86868b;
+
+}
+
+
+.value{
+
+  margin-top:6px;
+
+  font-size:16px;
+
+  font-weight:500;
+
+  word-break:break-all;
+
+}
+
+
+.section > button{
+
+  margin-top:12px;
+
+}
+
+
+.title-row{
+
+  margin-top:18px;
+
+  display:flex;
+
+  align-items:center;
+
+  justify-content:space-between;
+
+}
+
+
+.value-row{
+
+  margin-top:6px;
+
+  display:flex;
+
+  align-items:center;
+
+  gap:8px;
+
+}
+
+
+.icon-button{
+
+  width:26px;
+
+  height:26px;
+
+  padding:0;
+
+  margin:0;
+
+  border-radius:50%;
+
+  background:#f2f2f7;
+
+  color:#666;
+
+  font-size:14px;
+
+  line-height:26px;
+
+}
+
+
+.danger{
+
+  background:#f2f2f7;
+
+  color:#d70015;
+
+}
+
+
 </style>
 
 </head>
@@ -2286,38 +3125,94 @@ WUORZ Chat
 
 <div
 class="subtitle"
-id="user"
 >
-账户
+账户信息
 </div>
 
 
-<label>
-昵称
-</label>
+<div class="section">
 
-<input
-id="displayname"
-readonly
+<div class="title">
+用户名
+</div>
+
+<div
+class="value"
+id="user"
 >
+</div>
+
+
+<div class="title">
+昵称
+</div>
+
+
+<div class="value-row">
+
+<div
+class="value"
+id="displayname"
+>
+</div>
 
 
 <button
-class="secondary"
+class="icon-button"
 onclick="changeName()"
+title="修改昵称"
 >
-修改昵称
+
+<svg
+width="14"
+height="14"
+viewBox="0 0 24 24"
+fill="none"
+stroke="currentColor"
+stroke-width="2"
+stroke-linecap="round"
+stroke-linejoin="round"
+>
+<path d="M12 20h9"/>
+<path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+</svg>
+
 </button>
 
+</div>
 
-<label>
+
+<div class="title">
 邮箱
-</label>
+</div>
 
-<input
+<div
+class="value"
 id="email"
-readonly
 >
+</div>
+
+
+<div class="title">
+当前设备
+</div>
+
+<div
+class="value"
+id="device"
+>
+</div>
+
+
+</div>
+
+
+
+<div class="section">
+
+<div class="subtitle">
+安全设置
+</div>
 
 
 <button
@@ -2328,21 +3223,35 @@ onclick="location.href='/change-email'"
 </button>
 
 
-<div class="actions">
-
 <button
-class="primary"
+class="secondary"
 onclick="location.href='/change-password'"
 >
 修改密码
 </button>
 
+
 <button
-class="secondary"
+class="danger"
+disabled
+>
+删除账户
+</button>
+
+
+</div>
+
+
+<div class="actions">
+
+
+<button
+class="primary"
 onclick="logout()"
 >
 退出登录
 </button>
+
 
 </div>
 
@@ -2382,16 +3291,33 @@ const r =
     await r.json();
 
 
-  document
-    .getElementById("displayname")
-    .value =
-      data.displayname || "";
+document
+.getElementById("displayname")
+.textContent =
+  data.displayname || "";
 
 
-  document
-    .getElementById("email")
-    .value =
-      data.email || "";    
+document
+.getElementById("email")
+.textContent =
+  data.email || "";    
+
+
+const device =
+  await fetch(
+    "/api/device"
+  );
+
+
+const deviceData =
+  await device.json();
+
+
+document
+.getElementById("device")
+.textContent =
+  deviceData.device || "";  
+
 
 }
 
@@ -2466,27 +3392,102 @@ async function changeName(){
 }
 
 
-loadProfile();
-
-const user =
-sessionStorage.getItem(
-  "chatid_user_id"
-);
+async function checkLogin(){
 
 
-if(!user){
+  const token =
+    sessionStorage.getItem(
+      "chatid_access_token"
+    );
 
-  location.href =
-    "/login";
 
-}else{
+  if(!token){
 
-  document
-    .getElementById("user")
-    .textContent =
-      user;
+    location.href =
+      "/login";
+
+    return false;
+
+  }
+
+
+  try{
+
+
+    const r =
+      await fetch(
+        "/api/whoami",
+        {
+
+          headers:{
+            "Authorization":
+              "Bearer " + token
+          }
+
+        }
+      );
+
+
+    if(!r.ok){
+
+      throw new Error();
+
+    }
+
+
+    const data =
+      await r.json();
+
+
+    sessionStorage.setItem(
+      "chatid_user_id",
+      data.user_id
+    );
+
+
+    document
+      .getElementById("user")
+      .textContent =
+        data.user_id;
+
+
+    return true;
+
+
+  }catch(e){
+
+
+    sessionStorage.clear();
+
+
+    location.href =
+      "/login";
+
+
+    return false;
+
+  }
+
 
 }
+
+
+
+(async()=>{
+
+
+  const ok =
+    await checkLogin();
+
+
+  if(ok){
+
+    loadProfile();
+
+  }
+
+
+})();
 
 
 function logout(){
@@ -3184,6 +4185,181 @@ document
 
 /*
  * ============================================================
+ * API：管理员登录
+ * ============================================================
+ */
+
+if (
+  url.pathname ===
+    "/api/admin/login" &&
+  request.method === "POST"
+) {
+
+  try{
+
+    const body =
+      await request.json();
+
+
+    const password =
+      body.password || "";
+
+
+    /*
+     * 验证管理员密钥
+     */
+
+    if(
+      !password ||
+      password !== ADMIN_TOKEN
+    ){
+
+      return json(
+        {
+          error:
+            "管理员密钥错误"
+        },
+        401
+      );
+
+    }
+
+
+    /*
+     * 创建随机管理员 Session
+     */
+
+    const session =
+      await createAdminSession(
+        env
+      );
+
+
+    /*
+     * 设置 HttpOnly Cookie
+     */
+
+    const response =
+      json({
+        success:true
+      });
+
+
+    response.headers.set(
+      "Set-Cookie",
+      [
+        "wuorz_admin_session=" +
+          encodeURIComponent(
+            session
+          ),
+
+        "Path=/",
+
+        "Max-Age=3600",
+
+        "HttpOnly",
+
+        "Secure",
+
+        "SameSite=Strict"
+      ].join("; ")
+    );
+
+
+    return response;
+
+
+  }catch(e){
+
+    console.error(
+      "Admin login:",
+      e
+    );
+
+
+    return json(
+      {
+        error:
+          "管理员登录失败"
+      },
+      500
+    );
+
+  }
+
+}
+
+
+/*
+ * ============================================================
+ * API：管理员退出
+ * ============================================================
+ */
+
+if (
+  url.pathname ===
+    "/api/admin/logout" &&
+  request.method === "POST"
+) {
+
+  try{
+
+    await deleteAdminSession(
+      request,
+      env
+    );
+
+
+    const response =
+      json({
+        success:true
+      });
+
+
+    response.headers.set(
+      "Set-Cookie",
+      [
+        "wuorz_admin_session=",
+
+        "Path=/",
+
+        "Max-Age=0",
+
+        "HttpOnly",
+
+        "Secure",
+
+        "SameSite=Strict"
+      ].join("; ")
+    );
+
+
+    return response;
+
+
+  }catch(e){
+
+    console.error(
+      "Admin logout:",
+      e
+    );
+
+
+    return json(
+      {
+        error:
+          "退出失败"
+      },
+      500
+    );
+
+  }
+
+}
+
+
+/*
+ * ============================================================
  * API：批量生成邀请码
  * ============================================================
  */
@@ -3194,21 +4370,25 @@ if (
   request.method === "POST"
 ) {
 
-  const authorization =
-    request.headers.get(
-      "Authorization"
+  /*
+   * ----------------------------------------------------------
+   * 验证管理员 Session
+   * ----------------------------------------------------------
+   */
+
+  const authenticated =
+    await verifyAdminSession(
+      request,
+      env
     );
 
 
-  if(
-    authorization !==
-      `Bearer ${ADMIN_TOKEN}`
-  ){
+  if(!authenticated){
 
     return json(
       {
         error:
-          "无权访问"
+          "管理员登录已失效"
       },
       401
     );
@@ -3223,7 +4403,9 @@ if (
 
 
     const count =
-      Number(body.count);
+      Number(
+        body.count
+      );
 
 
     if(
@@ -3364,9 +4546,14 @@ if (
 
 
     return json({
+
       success:true,
-      count:codes.length,
+
+      count:
+        codes.length,
+
       codes
+
     });
 
 
@@ -4216,6 +5403,99 @@ const verified =
 
 /*
  * ============================================================
+ * API：验证登录状态
+ * ============================================================
+ */
+
+if (
+  url.pathname === "/api/whoami" &&
+  request.method === "GET"
+) {
+
+  try {
+
+    const token =
+      request.headers.get(
+        "Authorization"
+      )
+      ?.replace(
+        "Bearer ",
+        ""
+      );
+
+
+    if(!token){
+
+      return json(
+        {
+          error:
+            "未登录"
+        },
+        401
+      );
+
+    }
+
+
+    const response =
+      await fetch(
+        `${SYNAPSE_URL}/_matrix/client/v3/account/whoami`,
+        {
+
+          headers:{
+            "Authorization":
+              `Bearer ${token}`
+          }
+
+        }
+      );
+
+
+    if(!response.ok){
+
+      return json(
+        {
+          error:
+            "登录状态已失效"
+        },
+        401
+      );
+
+    }
+
+
+    const data =
+      await response.json();
+
+
+    return json({
+
+      user_id:
+        data.user_id
+
+    });
+
+
+  }catch(e){
+
+    console.error(e);
+
+
+    return json(
+      {
+        error:
+          "验证失败"
+      },
+      500
+    );
+
+  }
+
+}    
+
+
+/*
+ * ============================================================
  * API：获取资料
  * ============================================================
  */
@@ -4318,7 +5598,36 @@ return json({
 
   }
 
-}    
+}
+
+
+/*
+ * ============================================================
+ * API：获取当前设备
+ * ============================================================
+ */
+
+if (
+  url.pathname === "/api/device" &&
+  request.method === "GET"
+) {
+
+
+  const ua =
+    request.headers.get(
+      "User-Agent"
+    ) || "";
+
+
+  return json({
+
+    device:
+      parseUserAgent(ua)
+
+  });
+
+
+}
 
 
 /*
